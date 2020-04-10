@@ -59,11 +59,6 @@ class CacheLine:
     def is_filled(self) -> bool:
         return not self.is_empty()
 
-    def is_older_than(self, other):
-        assert (self._timestamp != -1)
-        assert (other.timestamp != -1)
-        return self._timestamp < other.timestamp
-
     def put(self, timestamp, tag):
         self._tag = tag
         self._timestamp = timestamp
