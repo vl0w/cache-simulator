@@ -1,5 +1,5 @@
 # The cache simulator
-We all love the $ (cache). [Caches](https://en.wikipedia.org/wiki/Cache_(computing) makes our programs magically run faster. 
+We all love the $ (cache). [Caches](https://en.wikipedia.org/wiki/Cache_(computing)) makes our programs magically run faster. 
 However, writing cache friendly code can be hard.
 
 With this tool, you can simulate the reads/writes of your program and find out whether you exploit the full power of your cache.
