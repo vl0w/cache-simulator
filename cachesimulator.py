@@ -126,7 +126,7 @@ class Cache:
         return var.address[0:-self._b - self._s]
 
     def is_in_cache(self, var: Variable) -> bool:
-        return self._get_line(var) is not None
+        return self._get_line_of_var(var) is not None
 
     def __is_set_full(self, set_index: int):
         for line in self._lines[set_index]:
@@ -134,7 +134,7 @@ class Cache:
                 return False
         return True
 
-    def _get_line(self, var) -> Optional[CacheLine]:
+    def _get_line_of_var(self, var: Variable) -> Optional[CacheLine]:
         tag_bits = self.get_tag_bits(var)
         set_index = self.get_set_index(var)
 
@@ -157,9 +157,9 @@ class Cache:
 
     def put_to_cache(self, var: Variable):
         self._timestamp += 1
-        if self.is_in_cache(var):
-            line = self._get_line(var)
-            line._timestamp = self._timestamp
+        cached_line = self._get_line_of_var(var)
+        if cached_line is not None:
+            cached_line._timestamp = self._timestamp
             return
 
         tag_bits = self.get_tag_bits(var)
