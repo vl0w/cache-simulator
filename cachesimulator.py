@@ -26,15 +26,10 @@ class Variable:
         return self._address
 
     def simulate_read(self, cache):
-        if cache.is_in_cache(self):
-            cache.stats["hits"] += 1
-        else:
-            cache.stats["misses"] += 1
-        cache.put_to_cache(self)
-        cache.stats["accesses"] += 1
+        cache.read_var(self)
 
     def simulate_write(self, cache):
-        self.simulate_read(cache)
+        cache.write_var(self)
 
 
 class CacheSet:
@@ -131,12 +126,25 @@ class Cache:
         set_index = self.get_set_index(var)
         return self._sets[set_index].is_var_cached(tag)
 
-    def put_to_cache(self, var: Variable):
-        self._timestamp += 1
+    def read_var(self, var: Variable):
+        self.__put_to_cache_and_update_stats(var)
 
+    def write_var(self, var: Variable):
+        self.read_var(var)
+
+    def __put_to_cache_and_update_stats(self, var: Variable):
         tag_bits = self.get_tag_bits(var)
         set_index = self.get_set_index(var)
         cache_set = self._sets[set_index]
+
+        self._timestamp += 1
+        self.stats["accesses"] += 1
+
+        if cache_set.is_var_cached(tag_bits):
+            self.stats["hits"] += 1
+        else:
+            self.stats["misses"] += 1
+
         cache_set.put_var(tag_bits, self._timestamp)
 
     def print_var_info(self, var: Variable):
