@@ -1,5 +1,5 @@
 import numpy as np
-from typing import List, Dict, Optional
+from typing import List, Dict
 
 ADDRESS_LENGTH_BITS = 64
 
@@ -37,31 +37,35 @@ class Variable:
         self.simulate_read(cache)
 
 
-class CacheLine:
-    _tag: Optional[str]
-    _timestamp: int
+class CacheSet:
+    _lines: Dict[str, int]  # (tag, timestamp)
+    _associativity: int
 
-    def __init__(self):
-        self._tag = None
-        self._timestamp = -1
+    def __init__(self, associativity: int):
+        self._associativity = associativity
+        self._used_lines = 0
+        self._lines = dict()
 
-    @property
-    def tag(self) -> Optional[str]:
-        return self._tag
+    def is_var_cached(self, tag: str) -> bool:
+        return tag in self._lines
 
-    @property
-    def timestamp(self) -> int:
-        return self._timestamp
+    def put_var(self, tag: str, timestamp: int):
+        self._lines[tag] = timestamp
 
-    def is_empty(self) -> bool:
-        return self.tag is None
+        if len(self._lines.values()) > self._associativity:
+            self._remove_oldest_line()
 
-    def is_filled(self) -> bool:
-        return not self.is_empty()
+    def _remove_oldest_line(self):
+        self._lines.values()
 
-    def put(self, timestamp, tag):
-        self._tag = tag
-        self._timestamp = timestamp
+        line_with_lowest_timestamp = None
+        lowest_timestamp = -1
+        for tag, timestamp in self._lines.items():
+            if line_with_lowest_timestamp is None or timestamp < lowest_timestamp:
+                lowest_timestamp = timestamp
+                line_with_lowest_timestamp = tag
+
+        self._lines.pop(line_with_lowest_timestamp)
 
 
 class Cache:
@@ -72,10 +76,10 @@ class Cache:
     _E: int
     _S: int
     _timestamp: int
-    _lines: List[List[CacheLine]]
+    _sets: List[CacheSet]
     _stats: Dict[str, int]
 
-    def __init__(self, total_size: int, block_size: int, associativity=1):
+    def __init__(self, total_size: int, block_size: int, associativity: int = 1):
         b_float = np.log2(block_size)
         e_float = np.log2(associativity)
         if not b_float.is_integer():
@@ -98,12 +102,9 @@ class Cache:
             "accesses": 0
         }
 
-        self._lines = []
+        self._sets = []
         for _ in range(self._S):
-            set_lines = []
-            for _ in range(self._E):
-                set_lines.append(CacheLine())
-            self._lines.append(set_lines)
+            self._sets.append(CacheSet(self._E))
 
     @property
     def stats(self) -> Dict[str, int]:
@@ -126,57 +127,17 @@ class Cache:
         return var.address[0:-self._b - self._s]
 
     def is_in_cache(self, var: Variable) -> bool:
-        return self._get_line_of_var(var) is not None
-
-    def __is_set_full(self, set_index: int):
-        for line in self._lines[set_index]:
-            if line.is_empty():
-                return False
-        return True
-
-    def _get_line_of_var(self, var: Variable) -> Optional[CacheLine]:
-        tag_bits = self.get_tag_bits(var)
+        tag = self.get_tag_bits(var)
         set_index = self.get_set_index(var)
-
-        for line in self._lines[set_index]:
-            if line.is_filled() and line.tag == tag_bits:
-                return line
-
-        return None
-
-    def _get_lru_line(self, set_index: int):
-        lru_line = None
-        curr_min = self._timestamp
-        for line in self._lines[set_index]:
-            if line.timestamp < curr_min:
-                curr_min = line.timestamp
-                lru_line = line
-
-        assert (lru_line is not None)
-        return lru_line
+        return self._sets[set_index].is_var_cached(tag)
 
     def put_to_cache(self, var: Variable):
         self._timestamp += 1
-        cached_line = self._get_line_of_var(var)
-        if cached_line is not None:
-            cached_line._timestamp = self._timestamp
-            return
 
         tag_bits = self.get_tag_bits(var)
         set_index = self.get_set_index(var)
-
-        cached = False
-        for line in self._lines[set_index]:
-            if line.is_empty():
-                line.put(self._timestamp, tag_bits)
-                cached = True
-                break
-
-        if cached:
-            return
-
-        lru_line = self._get_lru_line(set_index)
-        lru_line.put(self._timestamp, tag_bits)
+        cache_set = self._sets[set_index]
+        cache_set.put_var(tag_bits, self._timestamp)
 
     def print_var_info(self, var: Variable):
         offset_bits = self.get_offset_bits(var)
