@@ -1,13 +1,12 @@
 import numpy as np
 from typing import List, Dict
-
-ADDRESS_LENGTH_BITS = 64
+from abc import ABCMeta, abstractmethod
+from dataclasses import dataclass
 
 
 def _number_to_bit_str(nbr, final_length):
     bit_string = "{0:b}".format(nbr)
     zeros_needed = final_length - len(bit_string)
-    assert (zeros_needed >= 0)
     return "0" * zeros_needed + bit_string
 
 
@@ -18,18 +17,109 @@ def _bit_str_to_number(bit_string):
 class Variable:
     _address: str
 
-    def __init__(self, address: str):
+    def __init__(self, address: str, memory_system):
         self._address = address
+        self._memory_system = memory_system
 
     @property
     def address(self) -> str:
         return self._address
 
-    def simulate_read(self, cache):
-        cache.read_var(self)
+    def read(self):
+        self._memory_system.read_var(self)
 
-    def simulate_write(self, cache):
-        cache.write_var(self)
+    def write(self):
+        self._memory_system.write_var(self)
+
+
+@dataclass
+class CacheStats:
+    hits = 0
+    misses = 0
+    accesses = 0
+
+
+class AbstractCache(metaclass=ABCMeta):
+    _stats: CacheStats
+    _description: str
+
+    def __init__(self, description=""):
+        self._description = description
+        self._stats = CacheStats()
+
+    @property
+    def description(self) -> str:
+        return self._description
+
+    @description.setter
+    def description(self, value: str):
+        self._description = value
+
+    @property
+    def stats(self) -> CacheStats:
+        return self._stats
+
+    @abstractmethod
+    def read_var(self, var: Variable):
+        raise NotImplementedError()
+
+    @abstractmethod
+    def write_var(self, var: Variable):
+        raise NotImplementedError()
+
+    @abstractmethod
+    def is_in_cache(self, var: Variable) -> bool:
+        raise NotImplementedError()
+
+
+class MemorySystem:
+    _address_length: int
+    _next_variable_byte_pos_int: int
+    _caches: List[AbstractCache]
+
+    def __init__(self, address_length: int = 64):
+        self._address_length = address_length
+        self._next_variable_byte_pos_int = 0
+        self._caches = []
+
+    @property
+    def address_length(self) -> int:
+        return self._address_length
+
+    @property
+    def caches(self) -> List[AbstractCache]:
+        return self._caches
+
+    def add_cache(self, cache: AbstractCache):
+        self._caches.append(cache)
+
+    def create_variables(self, amount: int, bytes_per_var: int) -> List[Variable]:
+        variables: List[Variable] = []
+        for _ in range(amount):
+            curr_address_string = _number_to_bit_str(self._next_variable_byte_pos_int, self._address_length)
+            variables.append(Variable(curr_address_string, self))
+            self._next_variable_byte_pos_int += bytes_per_var
+        return variables
+
+    def create_doubles(self, amount: int) -> List[Variable]:
+        return self.create_variables(amount, 8)
+
+    def create_floats(self, amount: int) -> List[Variable]:
+        return self.create_variables(amount, 4)
+
+    def read_var(self, var: Variable):
+        for cache in self._caches:
+            was_cached = cache.is_in_cache(var)
+            cache.read_var(var)
+            if was_cached:
+                break
+
+    def write_var(self, var: Variable):
+        for cache in self._caches:
+            was_cached = cache.is_in_cache(var)
+            cache.write_var(var)
+            if was_cached:
+                break
 
 
 class CacheSet:
@@ -63,7 +153,7 @@ class CacheSet:
         self._lines.pop(line_with_lowest_timestamp)
 
 
-class Cache:
+class Cache(AbstractCache):
     _b: int
     _e: int
     _s: int
@@ -72,9 +162,10 @@ class Cache:
     _S: int
     _timestamp: int
     _sets: List[CacheSet]
-    _stats: Dict[str, int]
 
-    def __init__(self, total_size: int, block_size: int, associativity: int = 1):
+    def __init__(self, total_size: int, block_size: int, associativity: int = 1, description=""):
+        AbstractCache.__init__(self, description)
+
         b_float = np.log2(block_size)
         e_float = np.log2(associativity)
         if not b_float.is_integer():
@@ -91,19 +182,10 @@ class Cache:
         self._S = int(total_size / block_size / associativity)
         self._s = int(np.log2(self._S))
         self._timestamp = 0  # for age of cache lines
-        self._stats = {
-            "hits": 0,
-            "misses": 0,
-            "accesses": 0
-        }
 
         self._sets = []
         for _ in range(self._S):
             self._sets.append(CacheSet(self._E))
-
-    @property
-    def stats(self) -> Dict[str, int]:
-        return self._stats
 
     def get_offset_bits(self, var: Variable) -> str:
         return var.address[-self._b:]
@@ -138,12 +220,12 @@ class Cache:
         cache_set = self._sets[set_index]
 
         self._timestamp += 1
-        self.stats["accesses"] += 1
+        self.stats.accesses += 1
 
         if cache_set.is_var_cached(tag_bits):
-            self.stats["hits"] += 1
+            self.stats.hits += 1
         else:
-            self.stats["misses"] += 1
+            self.stats.misses += 1
 
         cache_set.put_var(tag_bits, self._timestamp)
 
@@ -159,21 +241,3 @@ class Cache:
 
     def get_total_size(self) -> int:
         return self._S * self._E * self._B
-
-
-def create_variables(start_address_int: int, amount: int, size_per_var: int) -> List[Variable]:
-    variables: List[Variable] = []
-    curr_address_int = start_address_int
-    for _ in range(amount):
-        curr_address_string = _number_to_bit_str(curr_address_int, ADDRESS_LENGTH_BITS)
-        variables.append(Variable(curr_address_string))
-        curr_address_int += size_per_var
-    return variables
-
-
-def create_floats(start_address_int: int, amount: int) -> List[Variable]:
-    return create_variables(start_address_int, amount, 4)
-
-
-def create_doubles(start_address_int: int, amount: int) -> List[Variable]:
-    return create_variables(start_address_int, amount, 8)

@@ -3,12 +3,16 @@ from cachesimulator import *
 n = 40
 stride = 16
 
-variables = create_doubles(0, n * stride)
-cache = Cache(4096, 64, 2.)
+ms = MemorySystem()
+ms.add_cache(Cache(4096, 64, 2, description="L1"))
+ms.add_cache(Cache(4096, 64, 2, description="L2"))
+
+variables = ms.create_doubles(n * stride)
 
 for j in range(2):
     for i in range(n):
-        variables[i * stride].simulate_read(cache)
+        variables[i * stride].read()
 
-miss_rate = cache.stats["misses"] / cache.stats["accesses"]
-print(miss_rate)
+for cache in ms.caches:
+    miss_rate = cache.stats.misses / cache.stats.accesses
+    print("{} miss rate: {}".format(cache.description, miss_rate))
