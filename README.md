@@ -4,7 +4,7 @@ However, writing cache friendly code can be hard.
 
 With this tool, you can simulate the reads/writes of your program and find out whether you exploit the full power of your cache.
 
-# Example
+# Example (under construction)
 The following example demonstrates the capabilities of the cache simulator. 
 It is inspired by the lecture [Advanced Systems Lab](https://acl.inf.ethz.ch/teaching/fastcode/) at ETH Zurich.
 
