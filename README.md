@@ -33,7 +33,7 @@ tbd
 # Roadmap
 Things/ideas to do. This is also a list of features which are definitely missining.
 
-* Improve performance/memory consumption (pretty poor right now)
-* Multi-level caches
-* Cache coherence / support for multiple processors
-* Different replacements strategies (currently, only LRU is supported)
+- [ ] Improve performance/memory consumption (pretty poor right now)
+- [x] Multi-level caches
+- [ ] Cache coherence / support for multiple processors
+- [ ] Different replacements strategies (currently, only LRU is supported)
