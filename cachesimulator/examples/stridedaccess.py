@@ -1,4 +1,6 @@
-from cachesimulator import *
+import sys, os
+sys.path.append(os.getcwd() + '/..')
+from cachesimulator.cachesimulator import *
 
 n = 40
 stride = 16
